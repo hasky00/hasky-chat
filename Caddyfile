@@ -1,0 +1,5 @@
+# Replace hasky.chat with your real (sub)domain.
+# Caddy fetches and renews the TLS certificate automatically.
+hasky.chat {
+    reverse_proxy strfry:7777
+}
