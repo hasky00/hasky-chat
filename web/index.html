@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hasky.chat — Nostr chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#120E1C;          /* night sky */
+    --panel:#1A1428;
+    --panel-2:#221A33;
+    --line:#332A4A;
+    --text:#EFEAF8;
+    --muted:#9A8FB8;
+    --accent:#A78BFA;       /* nostr violet */
+    --accent-deep:#7C5CF0;
+    --live:#5CDBA6;         /* relay signal */
+    --warn:#F0B35C;
+    --danger:#F07C7C;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{color-scheme:dark;background:var(--ink)}
+  html,body{height:100%}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+  }
+  .mono{font-family:'JetBrains Mono',monospace}
+  button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  input,textarea{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+  /* ---------- login ---------- */
+  #login{
+    min-height:100%;
+    display:flex;align-items:center;justify-content:center;
+    padding:24px;
+    background:
+      radial-gradient(600px 400px at 20% 10%, rgba(124,92,240,.14), transparent 60%),
+      radial-gradient(500px 360px at 85% 85%, rgba(92,219,166,.06), transparent 60%),
+      var(--ink);
+  }
+  .card{
+    width:100%;max-width:420px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:32px 28px;
+  }
+  .wordmark{
+    font-size:13px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--accent);font-weight:500;
+  }
+  .card h1{
+    font-size:26px;font-weight:700;letter-spacing:-.01em;
+    margin:10px 0 6px;
+  }
+  .card .sub{color:var(--muted);font-size:14px;margin-bottom:24px}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .keyfield{
+    width:100%;
+    background:var(--ink);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    font-family:'JetBrains Mono',monospace;font-size:13px;
+    color:var(--text);
+  }
+  .keyfield::placeholder{color:#5A5075}
+  .keyfield:focus{border-color:var(--accent);outline:none}
+  .btn-primary{
+    width:100%;margin-top:16px;
+    background:var(--accent-deep);
+    color:#fff;font-weight:500;
+    border-radius:10px;padding:12px;
+    transition:background .15s;
+  }
+  .btn-primary:hover{background:#8B6EF5}
+  .btn-primary:disabled{opacity:.5;cursor:default}
+  .divider{
+    display:flex;align-items:center;gap:12px;
+    color:#5A5075;font-size:12px;margin:20px 0;
+  }
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+  .btn-ghost{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:10px;padding:11px;
+    color:var(--text);
+    transition:border-color .15s;
+  }
+  .btn-ghost:hover{border-color:var(--accent)}
+  .newkey{
+    margin-top:16px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:10px;padding:14px;
+    display:none;
+  }
+  .newkey.show{display:block}
+  .newkey p{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .newkey code{
+    display:block;
+    font-family:'JetBrains Mono',monospace;font-size:11.5px;
+    word-break:break-all;
+    color:var(--live);
+    margin-bottom:10px;
+  }
+  .newkey .use{color:var(--accent);font-size:13px;font-weight:500}
+  .notice{
+    margin-top:20px;font-size:12.5px;color:var(--muted);
+    border-left:2px solid var(--warn);
+    padding-left:12px;
+  }
+  .err{color:var(--danger);font-size:13px;margin-top:10px;display:none}
+  .err.show{display:block}
+
+  /* ---------- chat ---------- */
+  #chat{display:none;height:100%;flex-direction:column;background:var(--ink);color:var(--text)}
+  #chat.show{display:flex}
+  header{
+    display:flex;align-items:center;gap:14px;
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+    flex-wrap:wrap;
+  }
+  .room{font-weight:700;font-size:16px;letter-spacing:-.01em}
+  .room span{color:var(--accent)}
+  /* signature: the relay constellation */
+  .constellation{display:flex;align-items:center;gap:7px;cursor:pointer;padding:4px;border-radius:8px}
+  .constellation:hover{background:var(--panel-2)}
+  .relay-panel{
+    display:none;
+    position:absolute;top:52px;left:14px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:14px;
+    width:min(340px, calc(100vw - 28px));
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+    z-index:10;
+  }
+  .relay-panel.open{display:block}
+  .relay-panel h3{font-size:13px;color:var(--muted);font-weight:500;margin-bottom:10px}
+  .relay-row{
+    display:flex;align-items:center;gap:8px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+    padding:6px 0;
+  }
+  .relay-row .st{width:7px;height:7px;border-radius:50%;background:#4A4066;flex-shrink:0}
+  .relay-row .st.on{background:var(--live)}
+  .relay-row .url{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .relay-row .rm{color:var(--danger);font-size:15px;padding:2px 6px}
+  .relay-add{display:flex;gap:6px;margin-top:10px}
+  .relay-add input{
+    flex:1;min-width:0;
+    background:var(--ink);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 10px;
+    color:var(--text);
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+  }
+  .relay-add input::placeholder{color:#6B5F8C}
+  .relay-add input:focus{border-color:var(--accent);outline:none}
+  .relay-add button{
+    background:var(--accent-deep);color:#fff;
+    border-radius:8px;padding:0 14px;font-size:13px;font-weight:500;
+  }
+  .relay-hint{font-size:11px;color:var(--muted);margin-top:8px}
+  .relay-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#4A4066;
+    transition:background .3s, box-shadow .3s;
+  }
+  .relay-dot.on{
+    background:var(--live);
+    box-shadow:0 0 8px rgba(92,219,166,.7);
+  }
+  .relay-dot.on.pulse{animation:ping 1s ease-out}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(92,219,166,.6)}100%{box-shadow:0 0 0 9px rgba(92,219,166,0)}}
+  @media (prefers-reduced-motion: reduce){.relay-dot.on.pulse{animation:none}}
+  .constellation .label{font-size:11.5px;color:var(--muted)}
+  .spacer{flex:1}
+  .me{
+    display:flex;align-items:center;gap:10px;
+    font-size:12.5px;color:var(--muted);
+  }
+  .me .npub{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--accent)}
+  .logout{
+    font-size:12.5px;color:var(--muted);
+    border:1px solid var(--line);border-radius:8px;
+    padding:6px 12px;
+  }
+  .logout:hover{color:var(--danger);border-color:var(--danger)}
+
+  #messages{
+    flex:1;overflow-y:auto;
+    padding:20px 18px;
+    display:flex;flex-direction:column;gap:14px;
+    background:var(--ink);
+  }
+  .empty{
+    margin:auto;text-align:center;color:var(--muted);font-size:14px;max-width:320px;
+  }
+  .empty .big{font-size:17px;color:var(--text);font-weight:500;margin-bottom:6px}
+  .msg{display:flex;gap:12px;max-width:760px}
+  .avatar{
+    width:36px;height:36px;border-radius:50%;
+    flex-shrink:0;
+    background:var(--panel-2);
+    background-size:cover;background-position:center;
+  }
+  .msg .body{min-width:0}
+  .msg .meta{display:flex;align-items:baseline;gap:8px;margin-bottom:2px}
+  .msg .name{font-weight:500;font-size:13.5px}
+  .msg .time{font-size:11px;color:#6B5F8C;font-family:'JetBrains Mono',monospace}
+  .msg .content{
+    font-size:14.5px;color:var(--text);
+    word-wrap:break-word;white-space:pre-wrap;
+    border-left:2px solid var(--author, var(--line));
+    padding-left:10px;
+  }
+  .msg.mine .name{color:var(--accent)}
+  .msg.pending{opacity:.55}
+
+  form#composer{
+    display:flex;gap:10px;
+    padding:14px 18px;
+    border-top:1px solid var(--line);
+    background:var(--panel);
+    position:relative;
+  }
+  #composer input{
+    flex:1;min-width:0;
+    background:var(--ink);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    color:var(--text);
+    caret-color:var(--accent);
+  }
+  #composer input::placeholder{color:#6B5F8C}
+  #composer input:focus{border-color:var(--accent);outline:none}
+  .emoji-toggle{
+    width:46px;flex-shrink:0;
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-size:19px;line-height:1;
+    background:var(--ink);
+    transition:border-color .15s;
+  }
+  .emoji-toggle:hover,.emoji-toggle.open{border-color:var(--accent)}
+  .emoji-panel{
+    display:none;
+    position:absolute;
+    bottom:calc(100% + 8px);left:14px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:10px;
+    grid-template-columns:repeat(8,1fr);
+    gap:2px;
+    max-width:340px;
+    box-shadow:0 10px 30px rgba(0,0,0,.45);
+    z-index:5;
+  }
+  .emoji-panel.open{display:grid}
+  .emoji-panel button{
+    font-size:20px;line-height:1;
+    padding:7px;border-radius:8px;
+  }
+  .emoji-panel button:hover{background:var(--panel)}
+  #composer button{
+    background:var(--accent-deep);color:#fff;
+    border-radius:10px;padding:0 22px;font-weight:500;
+  }
+  #composer button:hover{background:#8B6EF5}
+  #composer button:disabled{opacity:.5;cursor:default}
+
+  @media (max-width:600px){
+    header{gap:10px;padding:12px 14px}
+    .me .npub-label{display:none}
+    #messages{padding:16px 12px}
+  }
+
+  /* ---------- tabs ---------- */
+  .tabs{
+    display:flex;gap:4px;
+    padding:8px 18px 0;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+  }
+  .tabs button{
+    padding:9px 18px;
+    font-size:14px;font-weight:500;
+    color:var(--muted);
+    border-bottom:2px solid transparent;
+    position:relative;
+  }
+  .tabs button.active{color:var(--text);border-bottom-color:var(--accent)}
+  .tabs button .dot{
+    position:absolute;top:7px;right:7px;
+    width:7px;height:7px;border-radius:50%;
+    background:var(--live);display:none;
+  }
+  .tabs button .dot.show{display:block}
+  .lock{font-size:11px;color:var(--live)}
+
+  /* ---------- DM list ---------- */
+  #dmList{flex:1;overflow-y:auto;display:none;flex-direction:column;background:var(--ink)}
+  #dmList.show{display:flex}
+  .dm-new{
+    display:flex;gap:8px;padding:14px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .dm-new input{
+    flex:1;min-width:0;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    color:var(--text);
+    font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  }
+  .dm-new input::placeholder{color:#6B5F8C}
+  .dm-new input:focus{border-color:var(--accent);outline:none}
+  .dm-new button{
+    background:var(--accent-deep);color:#fff;
+    border-radius:10px;padding:0 16px;font-weight:500;
+  }
+  .dm-item{
+    display:flex;gap:12px;align-items:center;
+    padding:13px 18px;text-align:left;width:100%;
+    border-bottom:1px solid #241D38;
+  }
+  .dm-item:hover{background:var(--panel)}
+  .dm-item .info{min-width:0;flex:1}
+  .dm-item .who{font-weight:500;font-size:14px}
+  .dm-item .preview{
+    font-size:12.5px;color:var(--muted);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .dm-item .when{font-size:11px;color:#6B5F8C;font-family:'JetBrains Mono',monospace}
+  .dm-item .unread{width:8px;height:8px;border-radius:50%;background:var(--live);flex-shrink:0;display:none}
+  .dm-item .unread.show{display:block}
+  .dm-empty{margin:auto;text-align:center;color:var(--muted);font-size:13.5px;padding:24px;max-width:300px}
+
+  /* ---------- DM thread ---------- */
+  #dmThread{flex:1;display:none;flex-direction:column;min-height:0;background:var(--ink)}
+  #dmThread.show{display:flex}
+  .thread-top{
+    display:flex;align-items:center;gap:10px;
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .thread-top .back{font-size:18px;padding:4px 10px;color:var(--accent)}
+  .thread-top .who{font-weight:500}
+  .thread-top .enc{font-size:11px;color:var(--live);margin-left:auto}
+  #dmMessages{flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:10px;background:var(--ink)}
+  .bubble{
+    max-width:78%;
+    padding:9px 13px;border-radius:14px;
+    font-size:14.5px;
+    word-wrap:break-word;white-space:pre-wrap;
+    color:var(--text);
+  }
+  .bubble.them{align-self:flex-start;background:var(--panel-2);border-bottom-left-radius:4px}
+  .bubble.us{align-self:flex-end;background:var(--accent-deep);border-bottom-right-radius:4px}
+  .bubble .t{display:block;font-size:10px;opacity:.65;margin-top:3px;font-family:'JetBrains Mono',monospace}
+  form#dmComposer{
+    display:flex;gap:10px;
+    padding:12px 14px;
+    border-top:1px solid var(--line);
+    background:var(--panel);
+  }
+  #dmComposer input{
+    flex:1;min-width:0;
+    background:var(--ink);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px 14px;
+    color:var(--text);
+    caret-color:var(--accent);
+  }
+  #dmComposer input::placeholder{color:#6B5F8C}
+  #dmComposer input:focus{border-color:var(--accent);outline:none}
+  #dmComposer button{
+    background:var(--accent-deep);color:#fff;
+    border-radius:10px;padding:0 20px;font-weight:500;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <div class="card">
+    <div class="wordmark">hasky·chat</div>
+    <h1>Sign in with your key</h1>
+    <p class="sub">A public chat room on Nostr. Your key signs your messages — it never leaves this page.</p>
+
+    <label for="nsec">Private key (nsec)</label>
+    <input id="nsec" class="keyfield" type="password" placeholder="nsec1..." autocomplete="off" spellcheck="false">
+    <p class="err" id="loginErr"></p>
+    <button class="btn-primary" id="loginBtn">Enter the room</button>
+
+    <div class="divider">or</div>
+    <button class="btn-ghost" id="extBtn">Sign in with extension (NIP-07)</button>
+    <p class="err" id="extErr"></p>
+
+    <div class="divider">no key yet</div>
+    <button class="btn-ghost" id="genBtn">Generate a new key</button>
+    <div class="newkey" id="newkeyBox">
+      <p>This is your new private key. Copy it somewhere safe — it cannot be recovered.</p>
+      <code id="newkeyCode"></code>
+      <button class="use" id="useKeyBtn">Use this key →</button>
+    </div>
+
+    <p class="notice">Your nsec is your identity and cannot be reset. Signing runs locally in your browser; nothing is sent anywhere except the messages you post, which are public.</p>
+  </div>
+</div>
+
+<!-- ============ CHAT ============ -->
+<div id="chat">
+  <header style="position:relative">
+    <div class="room">hasky<span>·</span>chat</div>
+    <div class="constellation" id="constellation" title="Manage relays"></div>
+    <div class="relay-panel" id="relayPanel">
+      <h3>Relays</h3>
+      <div id="relayRows"></div>
+      <div class="relay-add">
+        <input id="relayUrl" placeholder="wss://relay.yourdomain.com" autocomplete="off" spellcheck="false">
+        <button type="button" id="relayAdd">Add</button>
+      </div>
+      <p class="relay-hint">Added relays last for this session. Edit the RELAYS list in the file to make them permanent.</p>
+    </div>
+    <div class="spacer"></div>
+    <div class="me">
+      <span class="npub-label">you:</span>
+      <span class="npub" id="myNpub"></span>
+    </div>
+    <button class="logout" id="logoutBtn">Log out</button>
+  </header>
+
+  <nav class="tabs">
+    <button id="tabRoom" class="active">Room</button>
+    <button id="tabDms">Private <span class="lock">🔒</span><span class="dot" id="dmDot"></span></button>
+  </nav>
+
+  <div id="messages">
+    <div class="empty" id="emptyState">
+      <div class="big">Listening to the relays…</div>
+      Messages posted in this room appear here. Say hello — everything here is public and permanent.
+    </div>
+  </div>
+
+  <div id="dmList">
+    <div class="dm-new">
+      <input id="dmTo" placeholder="npub1… of the person to message" autocomplete="off" spellcheck="false">
+      <button id="dmStart">Start</button>
+    </div>
+    <div class="dm-empty" id="dmEmpty">
+      Encrypted conversations (NIP-17 / NIP-44) appear here. Only you and the other person can read them — relays see nothing but sealed envelopes.
+    </div>
+  </div>
+
+  <div id="dmThread">
+    <div class="thread-top">
+      <button class="back" id="dmBack" aria-label="Back">‹</button>
+      <span class="who" id="dmWho"></span>
+      <span class="enc">end-to-end encrypted</span>
+    </div>
+    <div id="dmMessages"></div>
+    <form id="dmComposer">
+      <input id="dmDraft" placeholder="Encrypted message…" autocomplete="off" maxlength="800">
+      <button type="submit" id="dmSendBtn">Send</button>
+    </form>
+  </div>
+
+  <form id="composer">
+    <div class="emoji-panel" id="emojiPanel" aria-label="Emoji picker"></div>
+    <button type="button" class="emoji-toggle" id="emojiToggle" aria-label="Insert emoji">😊</button>
+    <input id="draft" placeholder="Write a message…" autocomplete="off" maxlength="800">
+    <button type="submit" id="sendBtn">Send</button>
+  </form>
+</div>
+
+<script>
+/* =========================================================
+   Minimal Nostr client: bech32 + secp256k1 + BIP340 schnorr
+   ========================================================= */
+
+// ---------- byte helpers ----------
+const hex = b => Array.from(b).map(x => x.toString(16).padStart(2,'0')).join('');
+const unhex = s => new Uint8Array(s.match(/.{2}/g).map(x => parseInt(x,16)));
+const b2i = b => BigInt('0x' + hex(b));
+const i2b = i => unhex(i.toString(16).padStart(64,'0'));
+const cat = (...a) => { const o = new Uint8Array(a.reduce((s,x)=>s+x.length,0)); let p=0; for (const x of a){o.set(x,p);p+=x.length;} return o; };
+const sha256 = async b => new Uint8Array(await crypto.subtle.digest('SHA-256', b));
+const utf8 = s => new TextEncoder().encode(s);
+
+// ---------- bech32 (BIP-173) ----------
+const B32 = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+function b32polymod(vals){
+  const GEN=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+  let chk=1;
+  for (const v of vals){
+    const b=chk>>25; chk=(chk&0x1ffffff)<<5^v;
+    for (let i=0;i<5;i++) if ((b>>i)&1) chk^=GEN[i];
+  }
+  return chk;
+}
+function b32hrpExpand(h){ const r=[]; for (const c of h) r.push(c.charCodeAt(0)>>5); r.push(0); for (const c of h) r.push(c.charCodeAt(0)&31); return r; }
+function bech32Decode(str){
+  str = str.toLowerCase().trim();
+  const pos = str.lastIndexOf('1');
+  if (pos < 1 || pos + 7 > str.length) throw new Error('bad format');
+  const hrp = str.slice(0,pos);
+  const data = [...str.slice(pos+1)].map(c => B32.indexOf(c));
+  if (data.includes(-1)) throw new Error('bad charset');
+  if (b32polymod([...b32hrpExpand(hrp), ...data]) !== 1) throw new Error('bad checksum');
+  // 5-bit -> 8-bit
+  const words = data.slice(0,-6);
+  let acc=0, bits=0; const out=[];
+  for (const w of words){ acc=(acc<<5)|w; bits+=5; while(bits>=8){bits-=8; out.push((acc>>bits)&255);} }
+  return { hrp, bytes:new Uint8Array(out) };
+}
+function bech32Encode(hrp, bytes){
+  let acc=0, bits=0; const words=[];
+  for (const b of bytes){ acc=(acc<<8)|b; bits+=8; while(bits>=5){bits-=5; words.push((acc>>bits)&31);} }
+  if (bits) words.push((acc<<(5-bits))&31);
+  const chk = b32polymod([...b32hrpExpand(hrp), ...words, 0,0,0,0,0,0]) ^ 1;
+  const sum=[]; for (let i=0;i<6;i++) sum.push((chk>>(5*(5-i)))&31);
+  return hrp+'1'+[...words,...sum].map(w=>B32[w]).join('');
+}
+
+// ---------- secp256k1 ----------
+const CP = 2n**256n - 2n**32n - 977n;
+const CN = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const G = { x:0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n,
+            y:0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n };
+const md = (a,m=CP) => ((a%m)+m)%m;
+function inv(a,m=CP){ let [g,x]=[md(a,m),m],[u,v]=[1n,0n];
+  while (g!==0n){ const q=x/g; [x,g]=[g,x-q*g]; [v,u]=[u,v-q*u]; } return md(v,m); }
+function ptAdd(a,b){
+  if (!a) return b; if (!b) return a;
+  if (a.x===b.x && md(a.y+b.y)===0n) return null;
+  const l = (a.x===b.x && a.y===b.y)
+    ? md(3n*a.x*a.x*inv(2n*a.y))
+    : md((b.y-a.y)*inv(md(b.x-a.x)));
+  const x = md(l*l-a.x-b.x);
+  return { x, y: md(l*(a.x-x)-a.y) };
+}
+function ptMul(pt,k){ let r=null,q=pt; while(k>0n){ if(k&1n) r=ptAdd(r,q); q=ptAdd(q,q); k>>=1n; } return r; }
+
+async function taggedHash(tag,data){ const t=await sha256(utf8(tag)); return sha256(cat(t,t,data)); }
+function pubkeyFromPriv(dBytes){
+  const d=b2i(dBytes);
+  if (d<=0n || d>=CN) throw new Error('invalid key');
+  return hex(i2b(ptMul(G,d).x));
+}
+async function schnorrSign(msgBytes, dBytes){       // BIP340
+  let d=b2i(dBytes);
+  const Pt=ptMul(G,d);
+  if (Pt.y % 2n !== 0n) d = CN - d;
+  const px=i2b(Pt.x);
+  const aux=crypto.getRandomValues(new Uint8Array(32));
+  const t=i2b(d ^ b2i(await taggedHash('BIP0340/aux',aux)));
+  let k=md(b2i(await taggedHash('BIP0340/nonce',cat(t,px,msgBytes))), CN);
+  if (k===0n) throw new Error('nonce failure');
+  const R=ptMul(G,k);
+  if (R.y % 2n !== 0n) k = CN - k;
+  const rx=i2b(R.x);
+  const e=md(b2i(await taggedHash('BIP0340/challenge',cat(rx,px,msgBytes))), CN);
+  return hex(rx)+hex(i2b(md(k+e*d, CN)));
+}
+
+/* =========================================================
+   NIP-44 v2 encryption (verified against official vectors)
+   ========================================================= */
+function liftX(xHex){
+  const x = BigInt('0x'+xHex);
+  const ysq = md(x*x*x + 7n);
+  let y = 1n, a = md(ysq), e = (CP+1n)/4n;
+  while (e > 0n){ if (e & 1n) y = md(y*a); a = md(a*a); e >>= 1n; }
+  if (md(y*y) !== md(ysq)) throw new Error('point not on curve');
+  if (y % 2n !== 0n) y = CP - y;
+  return { x, y };
+}
+function ecdhX(privBytes, pubHex){
+  return i2b(ptMul(liftX(pubHex), b2i(privBytes)).x);
+}
+async function hmacSha256(keyBytes, data){
+  const k = await crypto.subtle.importKey('raw', keyBytes, {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+async function hkdfExpand(prk, info, len){
+  const out = new Uint8Array(len);
+  let t = new Uint8Array(0), pos = 0, i = 1;
+  while (pos < len){
+    t = await hmacSha256(prk, cat(t, info, new Uint8Array([i])));
+    out.set(t.slice(0, Math.min(32, len - pos)), pos);
+    pos += 32; i++;
+  }
+  return out;
+}
+function chacha20(key, nonce, data){
+  const rotl = (a,b) => (a << b) | (a >>> (32 - b));
+  const u32 = (b,i) => (b[i] | b[i+1]<<8 | b[i+2]<<16 | b[i+3]<<24) >>> 0;
+  const st = new Uint32Array(16);
+  st[0]=0x61707865; st[1]=0x3320646e; st[2]=0x79622d32; st[3]=0x6b206574;
+  for (let i=0;i<8;i++) st[4+i] = u32(key, i*4);
+  st[13] = u32(nonce,0); st[14] = u32(nonce,4); st[15] = u32(nonce,8);
+  const out = new Uint8Array(data.length);
+  const w = new Uint32Array(16);
+  const ks = new Uint8Array(64);
+  let counter = 0;
+  function qr(s,a,b,c,d){
+    s[a]=(s[a]+s[b])>>>0; s[d]=rotl(s[d]^s[a],16)>>>0;
+    s[c]=(s[c]+s[d])>>>0; s[b]=rotl(s[b]^s[c],12)>>>0;
+    s[a]=(s[a]+s[b])>>>0; s[d]=rotl(s[d]^s[a],8)>>>0;
+    s[c]=(s[c]+s[d])>>>0; s[b]=rotl(s[b]^s[c],7)>>>0;
+  }
+  for (let off = 0; off < data.length; off += 64){
+    st[12] = counter++;
+    w.set(st);
+    for (let r=0;r<10;r++){
+      qr(w,0,4,8,12); qr(w,1,5,9,13); qr(w,2,6,10,14); qr(w,3,7,11,15);
+      qr(w,0,5,10,15); qr(w,1,6,11,12); qr(w,2,7,8,13); qr(w,3,4,9,14);
+    }
+    for (let i=0;i<16;i++){
+      const v = (w[i] + st[i]) >>> 0;
+      ks[i*4]=v&255; ks[i*4+1]=(v>>>8)&255; ks[i*4+2]=(v>>>16)&255; ks[i*4+3]=(v>>>24)&255;
+    }
+    const n = Math.min(64, data.length - off);
+    for (let i=0;i<n;i++) out[off+i] = data[off+i] ^ ks[i];
+  }
+  return out;
+}
+const b64e = b => { let s=''; for (const x of b) s += String.fromCharCode(x); return btoa(s); };
+const b64d = s => new Uint8Array([...atob(s)].map(c => c.charCodeAt(0)));
+
+async function nip44ConversationKey(privBytes, pubHex){
+  return hmacSha256(utf8('nip44-v2'), ecdhX(privBytes, pubHex));   // HKDF-extract
+}
+function calcPaddedLen(len){
+  if (len <= 32) return 32;
+  const nextPower = 1 << (32 - Math.clz32(len - 1));
+  const chunk = nextPower <= 256 ? 32 : nextPower / 8;
+  return chunk * (Math.floor((len - 1) / chunk) + 1);
+}
+function nip44Pad(plainBytes){
+  const len = plainBytes.length;
+  if (len < 1 || len > 65535) throw new Error('invalid plaintext length');
+  const padded = new Uint8Array(2 + calcPaddedLen(len));
+  padded[0] = len >> 8; padded[1] = len & 255;
+  padded.set(plainBytes, 2);
+  return padded;
+}
+function nip44Unpad(padded){
+  const len = (padded[0] << 8) | padded[1];
+  if (len < 1 || len > 65535 || padded.length !== 2 + calcPaddedLen(len)) throw new Error('invalid padding');
+  return padded.slice(2, 2 + len);
+}
+async function nip44Encrypt(convKey, plaintext){
+  const nonce = crypto.getRandomValues(new Uint8Array(32));
+  const keys = await hkdfExpand(convKey, nonce, 76);
+  const ct = chacha20(keys.slice(0,32), keys.slice(32,44), nip44Pad(utf8(plaintext)));
+  const mac = await hmacSha256(keys.slice(44,76), cat(nonce, ct));
+  return b64e(cat(new Uint8Array([2]), nonce, ct, mac));
+}
+async function nip44Decrypt(convKey, payload){
+  if (payload.startsWith('#')) throw new Error('unsupported version');
+  const data = b64d(payload);
+  if (data.length < 99 || data[0] !== 2) throw new Error('invalid payload');
+  const nonce = data.slice(1,33), ct = data.slice(33,-32), mac = data.slice(-32);
+  const keys = await hkdfExpand(convKey, nonce, 76);
+  const expect = await hmacSha256(keys.slice(44,76), cat(nonce, ct));
+  let diff = 0; for (let i=0;i<32;i++) diff |= mac[i] ^ expect[i];
+  if (diff) throw new Error('invalid mac');
+  return new TextDecoder().decode(nip44Unpad(chacha20(keys.slice(0,32), keys.slice(32,44), ct)));
+}
+
+/* =========================================================
+   App state + relay pool
+   ========================================================= */
+let RELAYS = ['wss://hasky.chat','wss://relay.damus.io','wss://nos.lol','wss://relay.primal.net'];
+const ROOM_TAG = 'hasky-chat-room';
+
+const S = {
+  priv:null, pub:null, npub:null, ext:false,
+  sockets:new Map(),          // url -> ws
+  seen:new Set(),             // event ids
+  msgs:[],                    // {id, pubkey, created_at, content, pending}
+  profiles:new Map(),         // pubkey -> {name, picture}
+  profileQueue:new Set(),
+  dms:new Map(),              // partner pubkey -> [{id, from, created_at, content}]
+  dmUnread:new Set(),         // partner pubkeys with unread messages
+  dmActive:null,              // open thread partner
+  wrapSeen:new Set(),         // processed 1059 ids
+};
+
+const $ = id => document.getElementById(id);
+const short = pk => { const np = bech32Encode('npub', unhex(pk)); return np.slice(0,10)+'…'+np.slice(-4); };
+const authorColor = pk => `hsl(${parseInt(pk.slice(0,4),16)%360} 60% 62%)`;
+
+// ---------- login ----------
+$('genBtn').addEventListener('click', () => {
+  let d;
+  do { d = crypto.getRandomValues(new Uint8Array(32)); } while (b2i(d)===0n || b2i(d)>=CN);
+  const nsec = bech32Encode('nsec', d);
+  $('newkeyCode').textContent = nsec;
+  $('newkeyBox').classList.add('show');
+});
+$('useKeyBtn').addEventListener('click', () => { $('nsec').value = $('newkeyCode').textContent; });
+
+$('extBtn').addEventListener('click', async () => {
+  const errEl = $('extErr');
+  errEl.classList.remove('show');
+  if (!window.nostr) {
+    errEl.textContent = 'No Nostr extension found. Install Alby, nos2x, or similar, then reload this page.';
+    errEl.classList.add('show');
+    return;
+  }
+  try {
+    S.pub = await window.nostr.getPublicKey();
+    S.ext = true;
+    S.priv = null;
+    S.npub = bech32Encode('npub', unhex(S.pub));
+    enterRoom();
+  } catch (e) {
+    errEl.textContent = 'The extension declined the request.';
+    errEl.classList.add('show');
+  }
+});
+
+$('loginBtn').addEventListener('click', doLogin);
+$('nsec').addEventListener('keydown', e => { if (e.key==='Enter') doLogin(); });
+
+function doLogin(){
+  const errEl = $('loginErr');
+  errEl.classList.remove('show');
+  try {
+    const raw = $('nsec').value.trim();
+    if (!raw) throw new Error('Paste your nsec key to enter.');
+    const { hrp, bytes } = bech32Decode(raw);
+    if (hrp !== 'nsec' || bytes.length !== 32) throw new Error('This is not an nsec key. It should start with nsec1.');
+    S.priv = bytes;
+    S.pub = pubkeyFromPriv(bytes);
+    S.npub = bech32Encode('npub', unhex(S.pub));
+    $('nsec').value = '';
+    enterRoom();
+  } catch (e) {
+    errEl.textContent = e.message === 'bad checksum' ? 'That key has a typo — the checksum does not match.' : e.message;
+    errEl.classList.add('show');
+  }
+}
+
+$('logoutBtn').addEventListener('click', () => {
+  for (const ws of S.sockets.values()) { try { ws.close(); } catch(_){} }
+  S.sockets.clear(); S.seen.clear(); S.msgs = []; S.priv = null; S.pub = null; S.ext = false;
+  S.dms.clear(); S.dmUnread.clear(); S.dmActive = null; S.wrapSeen.clear();
+  $('dmDot').classList.remove('show');
+  $('messages').querySelectorAll('.msg').forEach(m => m.remove());
+  $('emptyState').style.display = '';
+  $('chat').classList.remove('show');
+  $('login').style.display = 'flex';
+});
+
+// ---------- room ----------
+function enterRoom(){
+  $('login').style.display = 'none';
+  $('chat').classList.add('show');
+  $('myNpub').textContent = S.npub.slice(0,12)+'…'+S.npub.slice(-4);
+  buildConstellation();
+  RELAYS.forEach(connectRelay);
+  showView('room');
+  $('draft').focus();
+  setInterval(flushProfileQueue, 2000);
+}
+
+function buildConstellation(){
+  const c = $('constellation');
+  c.innerHTML = '';
+  for (const url of RELAYS){
+    const d = document.createElement('div');
+    d.className = 'relay-dot';
+    d.dataset.url = url;
+    d.title = url.replace('wss://','');
+    c.appendChild(d);
+  }
+  const label = document.createElement('span');
+  label.className = 'label';
+  label.id = 'relayLabel';
+  label.textContent = 'connecting…';
+  c.appendChild(label);
+}
+function updateConstellation(){
+  let on = 0;
+  document.querySelectorAll('.relay-dot').forEach(d => {
+    const ws = S.sockets.get(d.dataset.url);
+    const open = ws && ws.readyState === 1;
+    d.classList.toggle('on', open);
+    if (open) on++;
+  });
+  const label = $('relayLabel');
+  if (label) label.textContent = on ? `${on}/${RELAYS.length} relays` : 'connecting…';
+}
+function pulseDot(url){
+  const d = document.querySelector(`.relay-dot[data-url="${url}"]`);
+  if (!d) return;
+  d.classList.remove('pulse'); void d.offsetWidth; d.classList.add('pulse');
+}
+
+// ---------- relay manager ----------
+$('constellation').addEventListener('click', () => {
+  renderRelayRows();
+  $('relayPanel').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#relayPanel') && !e.target.closest('#constellation'))
+    $('relayPanel').classList.remove('open');
+});
+function renderRelayRows(){
+  const box = $('relayRows');
+  box.innerHTML = '';
+  for (const url of RELAYS){
+    const row = document.createElement('div');
+    row.className = 'relay-row';
+    const st = document.createElement('span');
+    const ws = S.sockets.get(url);
+    st.className = 'st' + (ws && ws.readyState === 1 ? ' on' : '');
+    const u = document.createElement('span'); u.className = 'url'; u.textContent = url.replace('wss://','');
+    const rm = document.createElement('button'); rm.className = 'rm'; rm.textContent = '×';
+    rm.setAttribute('aria-label', 'Remove ' + url);
+    rm.addEventListener('click', () => removeRelay(url));
+    row.append(st, u, rm);
+    box.appendChild(row);
+  }
+}
+$('relayAdd').addEventListener('click', () => {
+  let url = $('relayUrl').value.trim().replace(/\/+$/,'');
+  if (!url) return;
+  if (!/^wss?:\/\//.test(url)) url = 'wss://' + url;
+  if (RELAYS.includes(url)) { $('relayUrl').value = ''; return; }
+  RELAYS.push(url);
+  $('relayUrl').value = '';
+  buildConstellation();
+  connectRelay(url);
+  renderRelayRows();
+});
+function removeRelay(url){
+  if (RELAYS.length === 1) { alert('Keep at least one relay.'); return; }
+  RELAYS = RELAYS.filter(u => u !== url);
+  const ws = S.sockets.get(url);
+  S.sockets.delete(url);          // delete first so onclose doesn't reconnect
+  if (ws) { try { ws.close(); } catch(_){} }
+  buildConstellation();
+  updateConstellation();
+  renderRelayRows();
+}
+
+function connectRelay(url){
+  let ws;
+  try { ws = new WebSocket(url); } catch(_) { return; }
+  S.sockets.set(url, ws);
+  ws.onopen = () => {
+    updateConstellation();
+    if ($('relayPanel').classList.contains('open')) renderRelayRows();
+    ws.send(JSON.stringify(['REQ','room',{ kinds:[1], '#t':[ROOM_TAG], limit:60 }]));
+    ws.send(JSON.stringify(['REQ','wraps',{ kinds:[1059], '#p':[S.pub], limit:100 }]));
+  };
+  ws.onmessage = ev => {
+    let m; try { m = JSON.parse(ev.data); } catch(_) { return; }
+    if (m[0] === 'EVENT') { handleEvent(m[2], url); }
+  };
+  ws.onclose = () => {
+    updateConstellation();
+    if ($('relayPanel').classList.contains('open')) renderRelayRows();
+    if (S.pub && RELAYS.includes(url) && S.sockets.get(url) === ws)
+      setTimeout(() => { if (S.pub && RELAYS.includes(url)) connectRelay(url); }, 4000);
+  };
+  ws.onerror = () => { try { ws.close(); } catch(_){} };
+}
+
+function handleEvent(ev, fromUrl){
+  if (!ev || !ev.id) return;
+  if (ev.kind === 0) { handleProfile(ev); return; }
+  if (ev.kind === 1059) { handleWrap(ev, fromUrl); return; }
+  if (ev.kind !== 1) return;
+  if (S.seen.has(ev.id)) return;
+  S.seen.add(ev.id);
+  pulseDot(fromUrl);
+  const msg = { id:ev.id, pubkey:ev.pubkey, created_at:ev.created_at, content:ev.content };
+  // replace optimistic pending copy if it's ours
+  const pend = S.msgs.find(m => m.pending && m.id === ev.id);
+  if (pend) { pend.pending = false; document.querySelector(`[data-id="${ev.id}"]`)?.classList.remove('pending'); return; }
+  insertMessage(msg);
+  if (!S.profiles.has(ev.pubkey)) S.profileQueue.add(ev.pubkey);
+}
+
+function insertMessage(msg){
+  $('emptyState').style.display = 'none';
+  // keep sorted by created_at
+  let idx = S.msgs.findIndex(m => m.created_at > msg.created_at);
+  if (idx === -1) idx = S.msgs.length;
+  S.msgs.splice(idx, 0, msg);
+
+  const box = $('messages');
+  const el = renderMessage(msg);
+  const next = box.querySelectorAll('.msg')[idx];
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 120;
+  box.insertBefore(el, next || null);
+  if (nearBottom || msg.pubkey === S.pub) box.scrollTop = box.scrollHeight;
+}
+
+function renderMessage(msg){
+  const el = document.createElement('div');
+  el.className = 'msg' + (msg.pubkey === S.pub ? ' mine' : '') + (msg.pending ? ' pending' : '');
+  el.dataset.id = msg.id;
+  el.dataset.pubkey = msg.pubkey;
+  el.style.setProperty('--author', authorColor(msg.pubkey));
+
+  const av = document.createElement('div'); av.className = 'avatar';
+  av.style.background = `linear-gradient(135deg, ${authorColor(msg.pubkey)}, var(--panel-2))`;
+
+  const body = document.createElement('div'); body.className = 'body';
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const name = document.createElement('span'); name.className = 'name';
+  const prof = S.profiles.get(msg.pubkey);
+  name.textContent = msg.pubkey === S.pub ? 'you' : (prof?.name || short(msg.pubkey));
+  if (prof?.picture) { av.style.background = ''; av.style.backgroundImage = `url("${prof.picture}")`; av.style.backgroundSize='cover'; }
+  const time = document.createElement('span'); time.className = 'time';
+  time.textContent = new Date(msg.created_at*1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  meta.append(name, time);
+  const content = document.createElement('div'); content.className = 'content';
+  content.textContent = msg.content;
+  body.append(meta, content);
+  el.append(av, body);
+  return el;
+}
+
+// ---------- profiles (kind 0) ----------
+function flushProfileQueue(){
+  if (!S.profileQueue.size) return;
+  const authors = [...S.profileQueue]; S.profileQueue.clear();
+  const req = JSON.stringify(['REQ','prof'+Date.now(),{ kinds:[0], authors, limit:authors.length }]);
+  for (const ws of S.sockets.values()) if (ws.readyState === 1) ws.send(req);
+}
+function handleProfile(ev){
+  try {
+    const p = JSON.parse(ev.content);
+    const existing = S.profiles.get(ev.pubkey);
+    if (existing && existing.at >= ev.created_at) return;
+    S.profiles.set(ev.pubkey, { name: p.display_name || p.name || null, picture: p.picture || null, at: ev.created_at });
+    document.querySelectorAll(`.msg[data-pubkey="${ev.pubkey}"]`).forEach(el => {
+      if (ev.pubkey !== S.pub) {
+        const n = el.querySelector('.name');
+        if (n && (p.display_name || p.name)) n.textContent = p.display_name || p.name;
+      }
+      if (p.picture) {
+        const av = el.querySelector('.avatar');
+        av.style.background = ''; av.style.backgroundImage = `url("${p.picture}")`; av.style.backgroundSize='cover';
+      }
+    });
+    renderDmList();
+    if (S.dmActive === ev.pubkey) $('dmWho').textContent = partnerName(ev.pubkey);
+  } catch(_){}
+}
+
+/* =========================================================
+   NIP-17 private messages (kind 14 rumor → 13 seal → 1059 wrap)
+   ========================================================= */
+const randPast = () => Math.floor(Date.now()/1000) - Math.floor(Math.random()*172800);
+
+async function eventId(ev){
+  const serial = JSON.stringify([0, ev.pubkey, ev.created_at, ev.kind, ev.tags, ev.content]);
+  return sha256(utf8(serial));
+}
+async function signWith(ev, privBytes){
+  const idBytes = await eventId(ev);
+  ev.id = hex(idBytes);
+  ev.sig = await schnorrSign(idBytes, privBytes);
+  return ev;
+}
+// encrypt/decrypt with MY key to a peer — via extension if that's how we logged in
+async function myEncrypt(peerPub, plaintext){
+  if (S.ext){
+    if (!window.nostr?.nip44) throw new Error('Your extension does not support NIP-44. Update it or log in with nsec.');
+    return window.nostr.nip44.encrypt(peerPub, plaintext);
+  }
+  return nip44Encrypt(await nip44ConversationKey(S.priv, peerPub), plaintext);
+}
+async function myDecrypt(peerPub, payload){
+  if (S.ext){
+    if (!window.nostr?.nip44) throw new Error('extension lacks nip44');
+    return window.nostr.nip44.decrypt(peerPub, payload);
+  }
+  return nip44Decrypt(await nip44ConversationKey(S.priv, peerPub), payload);
+}
+
+async function sendDm(toPub, text){
+  // 1) rumor — the real message; never signed, so it's deniable
+  const rumor = { pubkey:S.pub, created_at:Math.floor(Date.now()/1000), kind:14,
+                  tags:[['p', toPub]], content:text };
+  rumor.id = hex(await eventId(rumor));
+  // 2+3) one sealed wrap per recipient (them + a copy for ourselves)
+  for (const recipient of new Set([toPub, S.pub])){
+    let seal = { pubkey:S.pub, created_at:randPast(), kind:13, tags:[],
+                 content: await myEncrypt(recipient, JSON.stringify(rumor)) };
+    if (S.ext) seal = await window.nostr.signEvent(seal);
+    else seal = await signWith(seal, S.priv);
+
+    let eph; do { eph = crypto.getRandomValues(new Uint8Array(32)); } while (b2i(eph)===0n || b2i(eph)>=CN);
+    const ephPub = pubkeyFromPriv(eph);
+    const wrapKey = await nip44ConversationKey(eph, recipient);
+    let wrap = { pubkey:ephPub, created_at:randPast(), kind:1059, tags:[['p', recipient]],
+                 content: await nip44Encrypt(wrapKey, JSON.stringify(seal)) };
+    wrap = await signWith(wrap, eph);
+    S.wrapSeen.add(wrap.id);
+    const payload = JSON.stringify(['EVENT', wrap]);
+    for (const ws of S.sockets.values()) if (ws.readyState === 1) ws.send(payload);
+  }
+  storeDm(toPub, { id:rumor.id, from:S.pub, created_at:rumor.created_at, content:text });
+}
+
+async function handleWrap(ev, fromUrl){
+  if (S.wrapSeen.has(ev.id)) return;
+  S.wrapSeen.add(ev.id);
+  try {
+    const seal = JSON.parse(await myDecrypt(ev.pubkey, ev.content));
+    if (seal.kind !== 13) return;
+    const rumor = JSON.parse(await myDecrypt(seal.pubkey, seal.content));
+    if (rumor.kind !== 14) return;
+    if (rumor.pubkey !== seal.pubkey) return;   // spoof guard: rumor author must match seal signer
+    const partner = rumor.pubkey === S.pub
+      ? (rumor.tags.find(t => t[0]==='p')?.[1])
+      : rumor.pubkey;
+    if (!partner) return;
+    pulseDot(fromUrl);
+    storeDm(partner, { id:rumor.id, from:rumor.pubkey, created_at:rumor.created_at, content:rumor.content },
+            rumor.pubkey !== S.pub);
+    if (!S.profiles.has(partner)) S.profileQueue.add(partner);
+  } catch(_){ /* not for us / bad mac — ignore */ }
+}
+
+function storeDm(partner, msg, incoming){
+  if (!S.dms.has(partner)) S.dms.set(partner, []);
+  const list = S.dms.get(partner);
+  if (list.some(m => m.id === msg.id)) return;
+  let idx = list.findIndex(m => m.created_at > msg.created_at);
+  if (idx === -1) idx = list.length;
+  list.splice(idx, 0, msg);
+  if (incoming && S.dmActive !== partner){
+    S.dmUnread.add(partner);
+    $('dmDot').classList.add('show');
+  }
+  renderDmList();
+  if (S.dmActive === partner) renderThread();
+}
+
+// ---------- DM UI ----------
+const views = { room:['messages','composer'], list:['dmList'], thread:['dmThread'] };
+function showView(name){
+  for (const ids of Object.values(views))
+    for (const id of ids) $(id).style.display = 'none';
+  for (const id of views[name])
+    $(id).style.display = id==='composer' || id==='dmComposer' ? 'flex' : (id==='messages'||id==='dmMessages') ? 'flex' : '';
+  $('messages').style.display = name==='room' ? 'flex' : 'none';
+  $('composer').style.display = name==='room' ? 'flex' : 'none';
+  $('dmList').style.display = name==='list' ? 'flex' : 'none';
+  $('dmThread').style.display = name==='thread' ? 'flex' : 'none';
+  $('tabRoom').classList.toggle('active', name==='room');
+  $('tabDms').classList.toggle('active', name!=='room');
+}
+$('tabRoom').addEventListener('click', () => { S.dmActive = null; showView('room'); });
+$('tabDms').addEventListener('click', () => {
+  S.dmActive = null;
+  showView('list');
+  renderDmList();
+});
+$('dmBack').addEventListener('click', () => { S.dmActive = null; showView('list'); renderDmList(); });
+
+$('dmStart').addEventListener('click', () => {
+  const raw = $('dmTo').value.trim();
+  try {
+    const { hrp, bytes } = bech32Decode(raw);
+    if (hrp !== 'npub' || bytes.length !== 32) throw 0;
+    const pk = hex(bytes);
+    if (pk === S.pub) { alert('That is your own npub.'); return; }
+    $('dmTo').value = '';
+    if (!S.profiles.has(pk)) S.profileQueue.add(pk);
+    openThread(pk);
+  } catch(_){ alert('That does not look like a valid npub.'); }
+});
+
+function partnerName(pk){
+  return S.profiles.get(pk)?.name || short(pk);
+}
+function renderDmList(){
+  const box = $('dmList');
+  box.querySelectorAll('.dm-item').forEach(el => el.remove());
+  const partners = [...S.dms.keys()].sort((a,b) => {
+    const la = S.dms.get(a).at(-1)?.created_at || 0;
+    const lb = S.dms.get(b).at(-1)?.created_at || 0;
+    return lb - la;
+  });
+  $('dmEmpty').style.display = partners.length ? 'none' : '';
+  if (!S.dmUnread.size) $('dmDot').classList.remove('show');
+  for (const pk of partners){
+    const last = S.dms.get(pk).at(-1);
+    const item = document.createElement('button');
+    item.className = 'dm-item';
+    item.type = 'button';
+    const av = document.createElement('div'); av.className = 'avatar';
+    const pic = S.profiles.get(pk)?.picture;
+    if (pic){ av.style.backgroundImage = `url("${pic}")`; }
+    else av.style.background = `linear-gradient(135deg, ${authorColor(pk)}, var(--panel-2))`;
+    const info = document.createElement('div'); info.className = 'info';
+    const who = document.createElement('div'); who.className = 'who'; who.textContent = partnerName(pk);
+    const prev = document.createElement('div'); prev.className = 'preview';
+    prev.textContent = last ? (last.from === S.pub ? 'you: ' : '') + last.content : 'No messages yet';
+    info.append(who, prev);
+    const when = document.createElement('span'); when.className = 'when';
+    if (last) when.textContent = new Date(last.created_at*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    const dot = document.createElement('span'); dot.className = 'unread' + (S.dmUnread.has(pk) ? ' show' : '');
+    item.append(av, info, when, dot);
+    item.addEventListener('click', () => openThread(pk));
+    box.appendChild(item);
+  }
+}
+function openThread(pk){
+  S.dmActive = pk;
+  S.dmUnread.delete(pk);
+  if (!S.dms.has(pk)) S.dms.set(pk, []);
+  $('dmWho').textContent = partnerName(pk);
+  showView('thread');
+  renderThread();
+  $('dmDraft').focus();
+}
+function renderThread(){
+  const box = $('dmMessages');
+  box.innerHTML = '';
+  const list = S.dms.get(S.dmActive) || [];
+  for (const m of list){
+    const b = document.createElement('div');
+    b.className = 'bubble ' + (m.from === S.pub ? 'us' : 'them');
+    b.textContent = m.content;
+    const t = document.createElement('span'); t.className = 't';
+    t.textContent = new Date(m.created_at*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    b.appendChild(t);
+    box.appendChild(b);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+$('dmComposer').addEventListener('submit', async e => {
+  e.preventDefault();
+  const text = $('dmDraft').value.trim();
+  if (!text || !S.dmActive) return;
+  $('dmSendBtn').disabled = true;
+  try {
+    await sendDm(S.dmActive, text);
+    $('dmDraft').value = '';
+  } catch(err){
+    alert('Could not encrypt: ' + err.message);
+  } finally {
+    $('dmSendBtn').disabled = false;
+    $('dmDraft').focus();
+  }
+});
+
+// ---------- emoji picker ----------
+const EMOJIS = ['😀','😂','🤣','😊','😍','😎','🤔','😅','🙃','😭','😴','🤯','🥳','😇','🤙','👍','👎','👏','🙏','💪','🔥','⚡','✨','💜','❤️','💯','🎉','🚀','🌊','🌙','☕','🍕','🤖','👀','🫡','🐢'];
+(function buildEmojiPanel(){
+  const panel = $('emojiPanel');
+  for (const e of EMOJIS){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = e;
+    b.addEventListener('click', () => {
+      const d = $('draft');
+      const start = d.selectionStart ?? d.value.length;
+      const end = d.selectionEnd ?? d.value.length;
+      d.value = d.value.slice(0,start) + e + d.value.slice(end);
+      const pos = start + e.length;
+      d.focus();
+      d.setSelectionRange(pos, pos);
+    });
+    panel.appendChild(b);
+  }
+})();
+$('emojiToggle').addEventListener('click', () => {
+  $('emojiPanel').classList.toggle('open');
+  $('emojiToggle').classList.toggle('open');
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#emojiPanel') && !e.target.closest('#emojiToggle')){
+    $('emojiPanel').classList.remove('open');
+    $('emojiToggle').classList.remove('open');
+  }
+});
+
+// ---------- sending ----------
+$('composer').addEventListener('submit', async e => {
+  e.preventDefault();
+  const draft = $('draft');
+  const text = draft.value.trim();
+  if (!text || !S.pub) return;
+  $('sendBtn').disabled = true;
+  try {
+    let ev = {
+      pubkey: S.pub,
+      created_at: Math.floor(Date.now()/1000),
+      kind: 1,
+      tags: [['t', ROOM_TAG]],
+      content: text,
+    };
+    if (S.ext) {
+      ev = await window.nostr.signEvent(ev);   // extension computes id + sig
+    } else {
+      const serial = JSON.stringify([0, ev.pubkey, ev.created_at, ev.kind, ev.tags, ev.content]);
+      const idBytes = await sha256(utf8(serial));
+      ev.id = hex(idBytes);
+      ev.sig = await schnorrSign(idBytes, S.priv);
+    }
+
+    S.seen.add(ev.id);
+    insertMessage({ id:ev.id, pubkey:ev.pubkey, created_at:ev.created_at, content:ev.content, pending:true });
+
+    const payload = JSON.stringify(['EVENT', ev]);
+    let sent = 0;
+    for (const ws of S.sockets.values()) if (ws.readyState === 1) { ws.send(payload); sent++; }
+    if (sent) {
+      const el = document.querySelector(`[data-id="${ev.id}"]`);
+      setTimeout(() => el?.classList.remove('pending'), 600);
+    }
+    draft.value = '';
+  } finally {
+    $('sendBtn').disabled = false;
+    draft.focus();
+  }
+});
+</script>
+</body>
+</html>
