@@ -1089,17 +1089,30 @@ $('tabDms').addEventListener('click', () => {
 });
 $('dmBack').addEventListener('click', () => { S.dmActive = null; showView('list'); renderDmList(); });
 
+// Accepts npub, nostr:npub, nprofile, or a 64-char hex pubkey.
+function parsePubkey(raw){
+  let s = raw.trim().replace(/^nostr:/i, '');
+  if (/^[0-9a-f]{64}$/i.test(s)) return s.toLowerCase();
+  const { hrp, bytes } = bech32Decode(s);
+  if (hrp === 'npub' && bytes.length === 32) return hex(bytes);
+  if (hrp === 'nprofile') {
+    for (let i = 0; i + 2 <= bytes.length; ) {
+      const t = bytes[i], l = bytes[i+1], v = bytes.slice(i+2, i+2+l);
+      if (t === 0 && l === 32) return hex(v);
+      i += 2 + l;
+    }
+  }
+  throw 0;
+}
+
 $('dmStart').addEventListener('click', () => {
-  const raw = $('dmTo').value.trim();
   try {
-    const { hrp, bytes } = bech32Decode(raw);
-    if (hrp !== 'npub' || bytes.length !== 32) throw 0;
-    const pk = hex(bytes);
+    const pk = parsePubkey($('dmTo').value);
     if (pk === S.pub) { alert('That is your own npub.'); return; }
     $('dmTo').value = '';
     if (!S.profiles.has(pk)) S.profileQueue.add(pk);
     openThread(pk);
-  } catch(_){ alert('That does not look like a valid npub.'); }
+  } catch(_){ alert('Paste an npub, nprofile or hex key.'); }
 });
 
 function partnerName(pk){
